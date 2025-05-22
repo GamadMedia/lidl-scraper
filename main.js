@@ -1,25 +1,32 @@
 import { CheerioCrawler, Dataset } from 'crawlee';
 
-export const run = async () => {
-    const crawler = new CheerioCrawler({
-        async requestHandler({ request, $, log }) {
-            log.info(`Processing: ${request.url}`);
+const startUrls = ['https://www.lidl.si/h/sadje-in-zelenjava/h10071012'];
 
-            const products = [];
+const crawler = new CheerioCrawler({
+    async requestHandler({ $, request }) {
+        const items = [];
 
-            $('.product-box-container').each((_, el) => {
-                const name = $(el).find('.product-box-headline').text().trim();
-                const price = $(el).find('.product-price').text().trim();
-                products.push({ name, price });
-            });
+        $('.m-offer-tile').each((index, el) => {
+            const title = $(el).find('.m-offer-tile__title').text().trim();
+            const price = $(el).find('.m-price__price').text().trim();
 
-            await Dataset.pushData(products);
-        },
-    });
+            if (title && price) {
+                items.push({
+                    title,
+                    price,
+                    sourceUrl: request.url,
+                });
+            }
+        });
 
-    await crawler.run([
-        'https://www.lidl.si/h/sadje-in-zelenjava/h10071012',
-    ]);
-};
+        if (items.length > 0) {
+            await Dataset.pushData(items);
+            console.log(`✅ Pushed ${items.length} items to dataset`);
+        } else {
+            console.log('⚠️ No items found on this page.');
+        }
+    },
+});
 
-run();
+await crawler.run(startUrls);
+
