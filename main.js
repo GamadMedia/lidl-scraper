@@ -1,32 +1,30 @@
-import { CheerioCrawler, Dataset } from 'crawlee';
+import { PlaywrightCrawler } from 'crawlee';
 
-const startUrls = ['https://www.lidl.si/h/sadje-in-zelenjava/h10071012'];
+const crawler = new PlaywrightCrawler({
+    headless: true,
+    maxRequestsPerCrawl: 1,
+    requestHandler: async ({ page, request, enqueueLinks, log, pushData }) => {
+        log.info(`Visiting ${request.url}`);
 
-const crawler = new CheerioCrawler({
-    async requestHandler({ $, request }) {
-        const items = [];
+        // Wait for products to load — adjust if needed
+        await page.waitForSelector('.product-grid-box', { timeout: 10000 });
 
-        $('.m-offer-tile').each((index, el) => {
-            const title = $(el).find('.m-offer-tile__title').text().trim();
-            const price = $(el).find('.m-price__price').text().trim();
+        // Extract product data
+        const products = await page.$$eval('.product-grid-box', (elements) =>
+            elements.map(el => {
+                const name = el.querySelector('.product-title')?.innerText.trim() || '';
+                const price = el.querySelector('.price')?.innerText.trim() || '';
+                return { name, price };
+            })
+        );
 
-            if (title && price) {
-                items.push({
-                    title,
-                    price,
-                    sourceUrl: request.url,
-                });
-            }
-        });
-
-        if (items.length > 0) {
-            await Dataset.pushData(items);
-            console.log(`✅ Pushed ${items.length} items to dataset`);
-        } else {
-            console.log('⚠️ No items found on this page.');
+        // Push to dataset
+        for (const product of products) {
+            await pushData(product);
         }
     },
 });
 
-await crawler.run(startUrls);
+await crawler.run(['https://www.lidl.si/h/sadje-in-zelenjava/h10071012']);
+
 
